@@ -4,7 +4,7 @@ from flask import render_template, request, redirect, url_for, flash, session, a
 from flask_login import login_user, logout_user, current_user, login_required
 from werkzeug.utils import secure_filename
 from app.models import UserProfile
-from app.forms import LoginForm
+from app.forms import LoginForm, UploadForm
 from werkzeug.security import check_password_hash
 
 
@@ -25,21 +25,31 @@ def about():
 
 
 @app.route('/upload', methods=['POST', 'GET'])
+#@login_required       idk y This isn't working!!!!
 def upload():
     # Instantiate your form class
+    form = UploadForm()
 
     # Validate file upload on submit
     if form.validate_on_submit():
         # Get file data and save to your uploads folder
+        file = form.file.data
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
         flash('File Saved', 'success')
-        return redirect(url_for('home')) # Update this to redirect the user to a route that displays all uploaded image files
+        return redirect(url_for('upload')) # Update this to redirect the user to a route that displays all uploaded image files
 
-    return render_template('upload.html')
+    return render_template('upload.html', form=form)
 
 
 @app.route('/login', methods=['POST', 'GET'])
 def login():
+    error = None
+
+    if current_user.is_authenticated:
+        return redirect(url_for('upload'))
+    
     form = LoginForm()
 
     # change this to actually validate the entire form submission
@@ -56,22 +66,27 @@ def login():
         # passed to the login_user() method below.
         user = db.session.execute(db.select(UserProfile).filter_by(username=username)).scalar()
 
-        if user is not None and check_password_hash(user.password, password):
-            remember_me = False
-            if 'remember_me' in request.form:
-                remember_me = True
-
-        
-            # Gets user id, load into session
-            login_user(user)
-
+        if check_password_hash(user.password, password):
             # Remember to flash a message to the user
             flash('Logged in successfully.', 'success')
+            login_user(user)
 
-            return redirect(url_for("upload"))  # The user should be redirected to the upload form instead
-        
+            next = request.args.get('next')
+
+            #render_template('upload.html', form=form)
+            return redirect(next or url_for('upload'))
         else:
-            flash('Username or Password is incorrect.', 'danger')
+            flash("Login unsuccessful asd", 'danger')
+
+
+        
+        # Gets user id, load into session
+        #login_user(user)
+
+        
+
+       # return redirect(url_for("upload"))  # The user should be redirected to the upload form instead
+        
     
     return render_template("login.html", form=form)
 
